@@ -761,6 +761,17 @@ void eval_micro_sequencer()
     {
       next_state = next_state | ((1 & CURRENT_LATCHES.PSR15) << 3);   /* next_state | ((1 & CURRENT_LATCHES.PSR15) << 3): user mode -> J[3] */
     }
+        /* Lab 5: RETURN from the translation states (state 63 uses COND = 110) */
+    if (cond == 6)
+    {
+      next_state = CURRENT_LATCHES.RET;            /* CURRENT_LATCHES.RET: the state the caller was headed to */
+    }
+    /* Lab 5: CALL the translation states when this state's branch was not taken */
+    else if (GetCALL(micro) == 1 && next_state == j)                   /* GetCALL(micro) == 1 AND next_state == j */
+    {
+      NEXT_LATCHES.RET = j;      /* j: the caller's J field, which is its return state */
+      next_state = 57;            /* 57: the first translation state */
+    }
   }
   if (EXC) 
   {
