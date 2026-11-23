@@ -1079,6 +1079,12 @@ void latch_datapath_values()
     NEXT_LATCHES.MAR = BUS;                 /* BUS */
   }
 
+    /* ---- Lab 5: VA register (DP7): loads from the bus in the same cycle as MAR (calling states) ---- */
+  if (GetLD_VA(micro) == 1)                     /* GetLD_VA(micro) == 1 */
+  {
+    NEXT_LATCHES.VA = BUS;     /* BUS: the virtual address the calling state just formed */
+  }
+
   /* ---- MDR: from memory (5th cycle only) or from the bus ---- */
   if (GetLD_MDR(micro) == 1) 
   {
