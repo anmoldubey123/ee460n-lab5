@@ -670,38 +670,43 @@ int main(int argc, char *argv[]) {
    Begin your code here 	  			       */
 /***************************************************************/
 
-/* Lab 4: exception-detect logic (datapath DP6). Combinational: recomputed at the start of
-   every cycle from CURRENT values. Used by the microsequencer, cycle_memory and latch. */
-int EXC = 0;          /* wire: 1 = an exception is detected this cycle (only if EXC.CHECK is set) */
-int EXC_VECTOR = 0;   /* wire: vector produced by the logic: x04 unknown, x02 protection, x03 unaligned */
+/* Lab 5: exception-detect logic (datapath DP9). Combinational: recomputed at the start of
+   every cycle from CURRENT values. EXCMODE picks which check runs in this state.
+   Used by the microsequencer, cycle_memory and latch. */
+int EXC = 0;          /* wire: 1 = an exception is detected this cycle */
+int EXC_VECTOR = 0;   /* wire: x05 unknown, x03 unaligned, x04 protection, x02 page fault */
 
 void eval_exception()
 {
-  int *mi = CURRENT_LATCHES.MICROINSTRUCTION;
-  int mar = CURRENT_LATCHES.MAR;
-  int op, unknown = 0, protect = 0, unaligned = 0;
+  int *mi  = CURRENT_LATCHES.MICROINSTRUCTION;
+  int mode = GetEXCMODE(mi);     /* GetEXCMODE(mi): 0 none, 1 unknown (10/11), 2 unaligned (57), 3 protection/page fault (62) */
+  int op   = (CURRENT_LATCHES.IR >> 12) & 0xF;     /* opcode: (CURRENT_LATCHES.IR >> 12) & 0xF */
+  int ret  = CURRENT_LATCHES.RET;   /* return state of the access being translated */
+  int pte  = CURRENT_LATCHES.MDR;   /* in state 62, MDR holds the PTE that state 60 just read */
 
-  op = (CURRENT_LATCHES.IR >> 12) & 0xF;   /* opcode: (CURRENT_LATCHES.IR >> 12) & 0xF */
-  if(op==10 || op==11)
-  {
-    unknown   = 1;   /* 1 if op is 10 or 11 (opcodes 1010, 1011) */
-  }
-  if(CURRENT_LATCHES.PSR15 == 1 && mar < 0x3000)
-  {
-    protect = 1;   /* 1 if CURRENT_LATCHES.PSR15 == 1 AND mar < 0x3000 */
-  }
-  if(GetDATA_SIZE(mi) == 1 && (mar & 1))
-  {
-    unaligned = 1;   /* 1 if GetDATA_SIZE(mi) == 1 (word) AND bit 0 of mar is 1: (mar & 1) */
-  }
+  /* access decoder (MS1): what kind of access is being translated */
+  int word    = ret == 23 || ret == 25;  /* 1 if ret == 23 (STW) or ret == 25 (LDW), else 0 */
+  int trapacc = ret == 28;  /* 1 if ret == 28 (TRAP vector read), else 0 */
+
+  /* PTE fields */
+  int p_bit = (pte >> 3) & 1;    /* protection bit P: (pte >> 3) & 1 */
+  int v_bit = (pte >> 2) & 1;    /* valid bit V: (pte >> 2) & 1 */
 
   EXC = 0;
   EXC_VECTOR = 0;
-  if (GetEXC_CHECK(mi)) 
+
+  if (mode == 1)                               /* states 10, 11 */
   {
-    if (unknown)        { EXC = 1; EXC_VECTOR = 0x04;}   /* EXC = 1; EXC_VECTOR = 0x04 (highest priority) */
-    else if (protect)   { EXC = 1; EXC_VECTOR = 0x02; }   /* EXC = 1; EXC_VECTOR = 0x02 (beats unaligned) */
-    else if (unaligned) { EXC = 1; EXC_VECTOR = 0x03; }   /* EXC = 1; EXC_VECTOR = 0x03 */
+    if (op == 10 || op == 11) { EXC = 1; EXC_VECTOR = 0x05; }        /* op is 10 or 11 -> 0x05 */
+  }
+  else if (mode == 2)                          /* state 57 */
+  {
+    if (word == 1 && (CURRENT_LATCHES.VA & 1)) { EXC = 1; EXC_VECTOR = 0x03; }        /* word is 1 AND bit 0 of CURRENT_LATCHES.VA is 1 -> 0x03 */
+  }
+  else if (mode == 3)                          /* state 62: protection beats page fault */
+  {
+    if (CURRENT_LATCHES.PSR15 == 1 && p_bit == 0 && trapacc == 0)      { EXC = 1; EXC_VECTOR = 0x04; }   /* CURRENT_LATCHES.PSR15 == 1 AND p_bit == 0 AND trapacc == 0 -> 0x04 */
+    else if (v_bit == 0) { EXC = 1; EXC_VECTOR = 0x02; }   /* v_bit == 0 -> 0x02 */
   }
 }
 
