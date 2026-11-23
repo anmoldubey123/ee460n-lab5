@@ -91,7 +91,13 @@ enum CS_BITS {
     SR1MUX1,                /* bit 45: SR1MUX1, the new high bit of SR1MUX (10 selects R6) */
     DRMUX1,                /* bit 46: DRMUX1, the new high bit of DRMUX (10 selects R6) */
     SPMUX1, SPMUX0,              /* bits 47-48: SPMUX1 then SPMUX0 (00 R6+2, 01 R6-2, 10 SSP, 11 USP) */
-    VECTORMUX,                /* bit 49: VECTORMUX, 0 = INTV, 1 = EXCV */
+    VECTORMUX,              /* bit 49: VECTORMUX, 0 = INTV, 1 = EXCV */
+        /* Lab 5 signals: bits 50-55, same order as the last column group of ucode5 */
+    EXC_CHECK1,                 /* bit 50: EXC_CHECK1, high bit of EXCMODE (the low bit is EXC_CHECK, bit 36) */
+    LD_VA,                 /* bit 51: LD_VA, VA <- BUS */
+    GATE_TRANS,                 /* bit 52: GATE_TRANS, translation unit drives the bus */
+    TRMUX1, TRMUX0,       /* bits 53-54: TRMUX1 then TRMUX0 */
+    CALL,                 /* bit 55: CALL, enter the translation states */                
     CONTROL_STORE_BITS
 } CS_BITS;
 
@@ -142,6 +148,13 @@ int GetGATE_SP(int *x)       { return(x[GATE_SP]); }  /* the single bit x[GATE_S
 int GetGATE_VECTOR(int *x)   { return(x[GATE_VECTOR]); }  /* the single bit x[GATE_VECTOR] */
 int GetPSRMUX(int *x)        { return(x[PSRMUX]); }  /* the single bit x[PSRMUX]: 0 = from BUS, 1 = supervisor */
 int GetVECTORMUX(int *x)     { return(x[VECTORMUX]); }  /* the single bit x[VECTORMUX]: 0 = INTV, 1 = EXCV */
+
+/* Lab 5 getters */
+int GetEXCMODE(int *x)       { return((x[EXC_CHECK1] << 1) + x[EXC_CHECK]); }  /* (x[EXC_CHECK1] << 1) + x[EXC_CHECK]: 0 none, 1 unknown, 2 unaligned, 3 protection/page fault */
+int GetLD_VA(int *x)         { return(x[LD_VA]); }  /* the single bit x[LD_VA] */
+int GetGATE_TRANS(int *x)    { return(x[GATE_TRANS]); }  /* the single bit x[GATE_TRANS] */
+int GetTRMUX(int *x)         { return((x[TRMUX1] << 1) + x[TRMUX0]); }  /* (x[TRMUX1] << 1) + x[TRMUX0]: 0 PTE address, 1 updated PTE, 2 physical address */
+int GetCALL(int *x)          { return(x[CALL]); }  /* the single bit x[CALL] */
 
 /***************************************************************/
 /* The control store rom.                                      */
@@ -208,6 +221,7 @@ int INT;   /* INT: interrupt-pending flag, set by the timer at cycle 300, cleare
 int PTBR; /* This is initialized when we load the page table */
 int VA;   /* Temporary VA register */
 /* MODIFY: you should add here any other registers you need to implement virtual memory */
+int RET;   /* RET: 6-bit return state for the translation states, loaded from the J field when a CALL state enters translation */
 
 } System_Latches;
 
