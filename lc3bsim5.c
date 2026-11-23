@@ -851,6 +851,8 @@ int SP_OUT     = 0;   /* SPMUX output: R6+2, R6-2, SSP or USP; input to the Gate
 int PSR_OUT    = 0;   /* {PSR15, 000000000000, N, Z, P}: input to the GatePSR tristate */
 int VECTOR_OUT = 0;   /* x0200 + (VECTOR << 1): input to the GateVector tristate */
 
+int TRANS_OUT  = 0;   /* translation unit output (DP8): input to the GateTRANS tristate */
+
 /* sign-extend the low 'bits' bits of value to 16 bits */
 int sext(int value, int bits) 
 {
@@ -1010,6 +1012,22 @@ void eval_bus_drivers()
 
   /* ---- Lab 4: vector-table address (DP4) ---- */
   VECTOR_OUT = 0x0200 + ((CURRENT_LATCHES.VECTOR & 0xFF) << 1);   /* 0x0200 + ((CURRENT_LATCHES.VECTOR & 0xFF) << 1) */
+
+    /* ---- Lab 5: translation unit (DP8): TRMUX picks PTE address, updated PTE or physical address ---- */
+  {
+    int va    = CURRENT_LATCHES.VA;
+    int pte   = CURRENT_LATCHES.MDR;   /* the PTE read in state 60 (used in 62), or the updated PTE (used in 63) */
+    int ret   = CURRENT_LATCHES.RET;
+    int write = ret == 23 || ret == 24;              /* access decoder WRITE: 1 if ret == 23 (STW) or ret == 24 (STB), else 0 */
+
+    if (GetTRMUX(micro) == 0)      { TRANS_OUT = (CURRENT_LATCHES.PTBR & 0xFF00) | (((va >> 9) & 0x7F) << 1); }   /* PTE address: (CURRENT_LATCHES.PTBR & 0xFF00) | (((va >> 9) & 0x7F) << 1) */
+    else if (GetTRMUX(micro) == 1)
+    {
+      TRANS_OUT = pte | 0x0001;                      /* set R: every access references the page */
+      if (write == 1) { TRANS_OUT = TRANS_OUT | 0x0002; }   /* also set M on STW / STB */
+    }
+    else                           { TRANS_OUT = (pte & 0x3E00) | (va & 0x01FF); }   /* physical address: (pte & 0x3E00) | (va & 0x01FF) */
+  }
 }
 
 
@@ -1040,6 +1058,7 @@ void drive_bus()
   else if (GetGATE_PSR(micro))    { BUS = PSR_OUT; }   /* PSR_OUT */
   else if (GetGATE_SP(micro))     { BUS = SP_OUT; }   /* SP_OUT */
   else if (GetGATE_VECTOR(micro)) { BUS = VECTOR_OUT; }   /* VECTOR_OUT */
+  else if (GetGATE_TRANS(micro))  { BUS = TRANS_OUT; }   /* TRANS_OUT */
   else 
   {
     BUS = 0;                    /* nothing gated: put 0 on the bus */
