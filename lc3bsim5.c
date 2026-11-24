@@ -92,12 +92,12 @@ enum CS_BITS {
     DRMUX1,                /* bit 46: DRMUX1, the new high bit of DRMUX (10 selects R6) */
     SPMUX1, SPMUX0,              /* bits 47-48: SPMUX1 then SPMUX0 (00 R6+2, 01 R6-2, 10 SSP, 11 USP) */
     VECTORMUX,              /* bit 49: VECTORMUX, 0 = INTV, 1 = EXCV */
-        /* Lab 5 signals: bits 50-55, same order as the last column group of ucode5 */
+    /* Lab 5 signals: bits 50-55, same order as the last column group of ucode5 */
     EXC_CHECK1,                 /* bit 50: EXC_CHECK1, high bit of EXCMODE (the low bit is EXC_CHECK, bit 36) */
     LD_VA,                 /* bit 51: LD_VA, VA <- BUS */
     GATE_TRANS,                 /* bit 52: GATE_TRANS, translation unit drives the bus */
     TRMUX1, TRMUX0,       /* bits 53-54: TRMUX1 then TRMUX0 */
-    CALL,                 /* bit 55: CALL, enter the translation states */                
+    CALL,                 /* bit 55: CALL, enter the translation states */
     CONTROL_STORE_BITS
 } CS_BITS;
 
@@ -685,8 +685,8 @@ void eval_exception()
   int pte  = CURRENT_LATCHES.MDR;   /* in state 62, MDR holds the PTE that state 60 just read */
 
   /* access decoder (MS1): what kind of access is being translated */
-  int word    = ret == 23 || ret == 25;  /* 1 if ret == 23 (STW) or ret == 25 (LDW), else 0 */
-  int trapacc = ret == 28;  /* 1 if ret == 28 (TRAP vector read), else 0 */
+  int word    = (ret == 23 || ret == 25);  /* 1 if ret == 23 (STW) or ret == 25 (LDW), else 0 */
+  int trapacc = (ret == 28);  /* 1 if ret == 28 (TRAP vector read), else 0 */
 
   /* PTE fields */
   int p_bit = (pte >> 3) & 1;    /* protection bit P: (pte >> 3) & 1 */
@@ -711,57 +711,57 @@ void eval_exception()
 }
 
 
-void eval_micro_sequencer() 
+void eval_micro_sequencer()
 {
-  /* 
-   * Evaluate the address of the next state according to the 
+  /*
+   * Evaluate the address of the next state according to the
    * micro sequencer logic. Latch the next microinstruction.
    */
 
-  int *micro = CURRENT_LATCHES.MICROINSTRUCTION;   
+  int *micro = CURRENT_LATCHES.MICROINSTRUCTION;
   int next_state;
-  /* Lab 4: simulated timer device, raises one interrupt at cycle 300 (clarifications 3, 6, 16) */
+  /* Lab 4 timer, moved here from cycle() (the Lab 5 shell has no MODIFY: spot there): one interrupt at cycle 300 */
   if (CYCLE_COUNT == 300) /* CYCLE_COUNT equals 300 */
-  {     
+  {
     CURRENT_LATCHES.INT = 1;         /* set CURRENT_LATCHES.INT to 1: the microsequencer sees it this cycle */
     NEXT_LATCHES.INT = 1;         /* set NEXT_LATCHES.INT to 1: survives the CURRENT = NEXT commit at the end of this cycle */
     CURRENT_LATCHES.INTV = 0x01;         /* set CURRENT_LATCHES.INTV to 0x01: the timer's interrupt vector */
     NEXT_LATCHES.INTV = 0x01;         /* set NEXT_LATCHES.INTV to 0x01 */
-  }                                             
+  }
 
   eval_exception();   /* call eval_exception(): sets the EXC and EXC_VECTOR wires for this cycle */
 
-  if (GetIRD(micro) == 1) 
-  {                        
-    next_state = (CURRENT_LATCHES.IR >> 12) & 0xF;                 
-  }
-  else 
+  if (GetIRD(micro) == 1)
   {
-    int j    = GetJ(micro);                        
-    int cond = GetCOND3(micro);   /* GetCOND3(micro): full 3-bit COND, 0-5 */
+    next_state = (CURRENT_LATCHES.IR >> 12) & 0xF;
+  }
+  else
+  {
+    int j    = GetJ(micro);
+    int cond = GetCOND3(micro);   /* GetCOND3(micro): full 3-bit COND, 0-6 */
     next_state = j;
 
-    if (cond == 1) 
-    {                               
+    if (cond == 1)
+    {
       next_state = next_state | ((1 & CURRENT_LATCHES.READY) << 1);   /* Check ready bit */
     }
-    if (cond == 2) 
+    if (cond == 2)
     {
       next_state = next_state | ((1 & CURRENT_LATCHES.BEN) << 2);   /* check branch enable */
     }
-    if (cond == 3) 
+    if (cond == 3)
     {
       next_state = next_state | ((CURRENT_LATCHES.IR >> 11) & 0x1);  /* check ir[11] */
     }
-    if (cond == 4) 
+    if (cond == 4)
     {
       next_state = next_state | ((1 & CURRENT_LATCHES.INT) << 3);   /* next_state | ((1 & CURRENT_LATCHES.INT) << 3): interrupt pending -> J[3] */
     }
-    if (cond == 5) 
+    if (cond == 5)
     {
       next_state = next_state | ((1 & CURRENT_LATCHES.PSR15) << 3);   /* next_state | ((1 & CURRENT_LATCHES.PSR15) << 3): user mode -> J[3] */
     }
-        /* Lab 5: RETURN from the translation states (state 63 uses COND = 110) */
+    /* Lab 5: RETURN from the translation states (state 63 uses COND = 110) */
     if (cond == 6)
     {
       next_state = CURRENT_LATCHES.RET;            /* CURRENT_LATCHES.RET: the state the caller was headed to */
@@ -773,12 +773,12 @@ void eval_micro_sequencer()
       next_state = 57;            /* 57: the first translation state */
     }
   }
-  if (EXC) 
+  if (EXC)
   {
     next_state = 42;   /* next_state = 42: exception entry overrides every other next-state choice */
   }
 
-  NEXT_LATCHES.STATE_NUMBER = next_state;          
+  NEXT_LATCHES.STATE_NUMBER = next_state;
   memcpy(NEXT_LATCHES.MICROINSTRUCTION, CONTROL_STORE[next_state], sizeof(int) * CONTROL_STORE_BITS);
 }
 
@@ -787,45 +787,45 @@ void eval_micro_sequencer()
 int mem_cycle = 0;   /* how many cycles MIO.EN has been asserted for the current access */
 int MEM_OUT   = 0;   /* 16-bit word read from memory; MDR loads this in latch_datapath_values */
 
-void cycle_memory() 
+void cycle_memory()
 {
   int *micro = CURRENT_LATCHES.MICROINSTRUCTION;
   int  mem_en = GetMIO_EN(micro) && !EXC;   /* MEM.EN = MIO.EN AND NOT EXC: GetMIO_EN(micro) && !EXC */
 
 
-  if (!mem_en) 
+  if (!mem_en)
   {
     return;                                   /* no memory access this cycle: nothing to do */
   }
 
   mem_cycle = mem_cycle + 1;                     /* count this cycle of the access (becomes 1..5) */
 
-  if (mem_cycle == 4) 
+  if (mem_cycle == 4)
   {                                           /* 4th cycle: raise R so the sequencer sees it NEXT cycle */
     NEXT_LATCHES.READY = 1;
   }
 
-  if (mem_cycle == 5 && CURRENT_LATCHES.READY == 1) 
+  if (mem_cycle == 5 && CURRENT_LATCHES.READY == 1)
   {                                           /* 5th cycle: the latched R is 1 -> perform the access now */
     int word_addr = CURRENT_LATCHES.MAR >> 1; /* MAR byte address -> MEMORY row index */
     int mar0      = CURRENT_LATCHES.MAR & 0x1;         /* MAR[0]: 0 = low byte [0], 1 = high byte [1] */
     int is_write  = GetR_W(micro);            /* 0 = RD, 1 = WR */
     int is_word   = GetDATA_SIZE(micro);      /* 0 = BYTE, 1 = WORD */
 
-    if (is_write == 0) 
+    if (is_write == 0)
     {
       MEM_OUT = (MEMORY[word_addr][1] << 8) | MEMORY[word_addr][0];     /* build 16-bit word: high byte [1] shifted up, OR low byte [0] */
-    } 
-    else 
+    }
+    else
     {
       int we0 = is_word || (!is_word && mar0 == 0);     /* low byte enable: word store, OR byte store with MAR[0]==0 */
       int we1 = is_word || (!is_word && mar0 == 1);     /* high byte enable: word store, OR byte store with MAR[0]==1 */
 
-      if (we0 == 1) 
+      if (we0 == 1)
       {
         MEMORY[word_addr][0] = CURRENT_LATCHES.MDR & 0xFF;  /* MDR[7:0] */
       }
-      if (we1 == 1) 
+      if (we1 == 1)
       {
         MEMORY[word_addr][1] = (CURRENT_LATCHES.MDR >> 8) & 0xFF;  /* MDR[15:8], shifted down to 0..255 */
       }
@@ -854,17 +854,17 @@ int VECTOR_OUT = 0;   /* x0200 + (VECTOR << 1): input to the GateVector tristate
 int TRANS_OUT  = 0;   /* translation unit output (DP8): input to the GateTRANS tristate */
 
 /* sign-extend the low 'bits' bits of value to 16 bits */
-int sext(int value, int bits) 
+int sext(int value, int bits)
 {
   value = value & ((1 << bits) - 1);                         /* keep only the low 'bits' bits: mask = (1 << bits) - 1 */
-  if (((value >> (bits - 1)) & 1) == 1) 
+  if (((value >> (bits - 1)) & 1) == 1)
   {                                                 /* top bit of the field is 1 -> negative */
     value = value | ~((1<< bits) - 1);                       /* fill upper bits with 1s: OR with ~((1 << bits) - 1) */
   }
   return Low16bits(value);                                  /* return value cut to 16 bits with Low16bits(...) */
 }
 
-void eval_bus_drivers() 
+void eval_bus_drivers()
 {
   int *micro = CURRENT_LATCHES.MICROINSTRUCTION;
   int ir     = CURRENT_LATCHES.IR;
@@ -873,50 +873,50 @@ void eval_bus_drivers()
   int addr2;
 
   /* ---- SR1: which register feeds the ALU's A input, ADDR1MUX's BaseR, and the stack unit ---- */
-  if (GetSR1MUX2(micro) == 0) 
+  if (GetSR1MUX2(micro) == 0)
   {
     sr1_num = (ir >> 9) & 0x7;     /* IR[11:9]: (ir >> 9) & 0x7 */
-  } 
-  else if (GetSR1MUX2(micro) == 1) 
+  }
+  else if (GetSR1MUX2(micro) == 1)
   {
     sr1_num = (ir >> 6) & 0x7;     /* IR[8:6]: (ir >> 6) & 0x7 */
   }
-  else 
+  else
   {
     sr1_num = 6;     /* 6: register R6, the stack pointer (SR1MUX = 10) */
   }
   SR1_OUT = CURRENT_LATCHES.REGS[sr1_num];                               /* CURRENT_LATCHES.REGS[sr1_num] */
 
   /* ---- ADDR1MUX ---- */
-  if (GetADDR1MUX(micro) == 0) 
+  if (GetADDR1MUX(micro) == 0)
   {
     addr1 = CURRENT_LATCHES.PC;                               /* CURRENT_LATCHES.PC */
-  } 
-  else 
+  }
+  else
   {
     addr1 = SR1_OUT;                               /* SR1_OUT (the BaseR value) */
   }
 
   /* ---- ADDR2MUX ---- */
-  if (GetADDR2MUX(micro) == 0) 
+  if (GetADDR2MUX(micro) == 0)
   {
     addr2 = 0;                                   /* 0 */
-  } 
-  else if (GetADDR2MUX(micro) == 1) 
+  }
+  else if (GetADDR2MUX(micro) == 1)
   {
     addr2 = sext(ir, 6);                       /* sext(ir, 6)  -> offset6 */
-  } 
-  else if (GetADDR2MUX(micro) == 2) 
+  }
+  else if (GetADDR2MUX(micro) == 2)
   {
     addr2 = sext(ir, 9);                       /* sext(ir, 9)  -> PCoffset9 */
-  } 
-  else 
+  }
+  else
   {
     addr2 = sext(ir, 11);                       /* sext(ir, 11) -> PCoffset11 */
   }
 
   /* ---- LSHF1 ---- */
-  if (GetLSHF1(micro) == 1) 
+  if (GetLSHF1(micro) == 1)
   {
     addr2 = addr2 << 1;                       /* addr2 shifted left by 1 */
   }
@@ -925,11 +925,11 @@ void eval_bus_drivers()
   ADDER_OUT = Low16bits(addr1 + addr2);                     /* Low16bits(addr1 + addr2) */
 
   /* ---- MARMUX ---- */
-  if (GetMARMUX(micro) == 0) 
+  if (GetMARMUX(micro) == 0)
   {
     MARMUX_OUT = ((ir & 0xFF) << 1);                  /* (ir AND 0xFF) shifted left 1  -> trap vector address */
-  } 
-  else 
+  }
+  else
   {
     MARMUX_OUT = ADDER_OUT;                  /* ADDER_OUT */
   }
@@ -942,60 +942,60 @@ void eval_bus_drivers()
     /* ---- ALU B input: imm5 or SR2 register ---- */
   int b_input;
 
-  if (((ir >> 5) & 1) == 1) 
+  if (((ir >> 5) & 1) == 1)
   {
     b_input = sext(ir, 5);                   /* sext(ir, 5) -> imm5 */
-  } 
-  else 
+  }
+  else
   {
     b_input = CURRENT_LATCHES.REGS[ir & 0x7];                   /* CURRENT_LATCHES.REGS[ ir AND 0x7 ] -> SR2 */
   }
 
   /* ---- ALU ---- */
-  if (GetALUK(micro) == 0) 
+  if (GetALUK(micro) == 0)
   {
     ALU_OUT = Low16bits(SR1_OUT + b_input);                   /* Low16bits(SR1_OUT + b_input) */
-  } 
-  else if (GetALUK(micro) == 1) 
+  }
+  else if (GetALUK(micro) == 1)
   {
     ALU_OUT = SR1_OUT & b_input;                   /* SR1_OUT AND b_input */
-  } 
-  else if (GetALUK(micro) == 2) 
+  }
+  else if (GetALUK(micro) == 2)
   {
     ALU_OUT = SR1_OUT ^ b_input;                   /* SR1_OUT XOR b_input */
-  } 
-  else 
+  }
+  else
   {
     ALU_OUT = SR1_OUT;                   /* PASSA: just SR1_OUT */
   }
 
   /* ---- SHF ---- */
   int amount = ir & 0xF;                  /* IR[3:0]: ir AND 0xF */
-  if (((ir >> 4) & 1) == 0) 
+  if (((ir >> 4) & 1) == 0)
   {
     SHF_OUT = Low16bits(SR1_OUT << amount);                   /* LSHF: Low16bits(SR1_OUT shifted left by amount) */
-  } 
-  else 
+  }
+  else
   {
     SHF_OUT = SR1_OUT >> amount;                   /* RSHFL first: SR1_OUT shifted right by amount */
-    if (((ir >> 5) & 1) == 1 && ((SR1_OUT >> 15) & 1) == 1) 
+    if (((ir >> 5) & 1) == 1 && ((SR1_OUT >> 15) & 1) == 1)
     {                                             /* RSHFA and original value negative */
       SHF_OUT = SHF_OUT | (((1 << amount) - 1) << (16 - amount));                 /* SHF_OUT OR (((1 << amount) - 1) << (16 - amount)) */
     }
   }
 
   /* ---- MDR output: whole word, or one byte sign-extended ---- */
-  if (GetDATA_SIZE(micro) == 1) 
+  if (GetDATA_SIZE(micro) == 1)
   {
     MDR_OUT = CURRENT_LATCHES.MDR;                   /* WORD: CURRENT_LATCHES.MDR */
-  } 
-  else 
+  }
+  else
   {
-    if ((CURRENT_LATCHES.MAR & 1) == 0) 
+    if ((CURRENT_LATCHES.MAR & 1) == 0)
     {
       MDR_OUT = sext(CURRENT_LATCHES.MDR & 0xFF, 8);                 /* even address: sext(MDR AND 0xFF, 8) */
-    } 
-    else 
+    }
+    else
     {
       MDR_OUT = sext((CURRENT_LATCHES.MDR >> 8) & 0xFF, 8);                 /* odd address: sext((MDR shifted right 8) AND 0xFF, 8) */
     }
@@ -1013,12 +1013,12 @@ void eval_bus_drivers()
   /* ---- Lab 4: vector-table address (DP4) ---- */
   VECTOR_OUT = 0x0200 + ((CURRENT_LATCHES.VECTOR & 0xFF) << 1);   /* 0x0200 + ((CURRENT_LATCHES.VECTOR & 0xFF) << 1) */
 
-    /* ---- Lab 5: translation unit (DP8): TRMUX picks PTE address, updated PTE or physical address ---- */
+  /* ---- Lab 5: translation unit (DP8): TRMUX picks PTE address, updated PTE or physical address ---- */
   {
     int va    = CURRENT_LATCHES.VA;
     int pte   = CURRENT_LATCHES.MDR;   /* the PTE read in state 60 (used in 62), or the updated PTE (used in 63) */
     int ret   = CURRENT_LATCHES.RET;
-    int write = ret == 23 || ret == 24;              /* access decoder WRITE: 1 if ret == 23 (STW) or ret == 24 (STB), else 0 */
+    int write = (ret == 23 || ret == 24);              /* access decoder WRITE: 1 if ret == 23 (STW) or ret == 24 (STB), else 0 */
 
     if (GetTRMUX(micro) == 0)      { TRANS_OUT = (CURRENT_LATCHES.PTBR & 0xFF00) | (((va >> 9) & 0x7F) << 1); }   /* PTE address: (CURRENT_LATCHES.PTBR & 0xFF00) | (((va >> 9) & 0x7F) << 1) */
     else if (GetTRMUX(micro) == 1)
@@ -1031,35 +1031,35 @@ void eval_bus_drivers()
 }
 
 
-void drive_bus() 
+void drive_bus()
 {
   int *micro = CURRENT_LATCHES.MICROINSTRUCTION;
 
-  if (GetGATE_MARMUX(micro) == 1) 
+  if (GetGATE_MARMUX(micro) == 1)
   {
     BUS = MARMUX_OUT;        /* MARMUX_OUT */
-  } 
-  else if (GetGATE_PC(micro) == 1) 
+  }
+  else if (GetGATE_PC(micro) == 1)
   {
     BUS = PC_OUT;        /* PC_OUT */
-  } 
-  else if (GetGATE_ALU(micro) == 1) 
+  }
+  else if (GetGATE_ALU(micro) == 1)
   {
     BUS = ALU_OUT;        /* ALU_OUT */
-  } 
-  else if (GetGATE_SHF(micro) == 1) 
+  }
+  else if (GetGATE_SHF(micro) == 1)
   {
     BUS = SHF_OUT;        /* SHF_OUT */
-  } 
-  else if (GetGATE_MDR(micro) == 1) 
+  }
+  else if (GetGATE_MDR(micro) == 1)
   {
     BUS = MDR_OUT;        /* MDR_OUT */
-  } 
+  }
   else if (GetGATE_PSR(micro))    { BUS = PSR_OUT; }   /* PSR_OUT */
   else if (GetGATE_SP(micro))     { BUS = SP_OUT; }   /* SP_OUT */
   else if (GetGATE_VECTOR(micro)) { BUS = VECTOR_OUT; }   /* VECTOR_OUT */
   else if (GetGATE_TRANS(micro))  { BUS = TRANS_OUT; }   /* TRANS_OUT */
-  else 
+  else
   {
     BUS = 0;                    /* nothing gated: put 0 on the bus */
   }
@@ -1068,40 +1068,40 @@ void drive_bus()
 }
 
 
-void latch_datapath_values() 
+void latch_datapath_values()
 {
   int *micro = CURRENT_LATCHES.MICROINSTRUCTION;
   int ir     = CURRENT_LATCHES.IR;
 
   /* ---- MAR ---- */
-  if (GetLD_MAR(micro) == 1) 
+  if (GetLD_MAR(micro) == 1)
   {
     NEXT_LATCHES.MAR = BUS;                 /* BUS */
   }
 
-    /* ---- Lab 5: VA register (DP7): loads from the bus in the same cycle as MAR (calling states) ---- */
+  /* ---- Lab 5: VA register (DP7): loads from the bus in the same cycle as MAR (calling states) ---- */
   if (GetLD_VA(micro) == 1)                     /* GetLD_VA(micro) == 1 */
   {
     NEXT_LATCHES.VA = BUS;     /* BUS: the virtual address the calling state just formed */
   }
 
   /* ---- MDR: from memory (5th cycle only) or from the bus ---- */
-  if (GetLD_MDR(micro) == 1) 
+  if (GetLD_MDR(micro) == 1)
   {
-    if (GetMIO_EN(micro) == 1) 
+    if (GetMIO_EN(micro) == 1)
     {
-      if (CURRENT_LATCHES.READY == 1) 
+      if (CURRENT_LATCHES.READY == 1)
       {
         NEXT_LATCHES.MDR = MEM_OUT;             /* MEM_OUT */
       }
-    } 
-    else 
+    }
+    else
     {
-      if (GetDATA_SIZE(micro) == 1) 
+      if (GetDATA_SIZE(micro) == 1)
       {
         NEXT_LATCHES.MDR = BUS;             /* WORD: BUS */
-      } 
-      else 
+      }
+      else
       {
         NEXT_LATCHES.MDR = (BUS & 0xFF) | ((BUS & 0xFF) << 8);     /* BYTE: (BUS AND 0xFF) OR ((BUS AND 0xFF) shifted left 8) */
       }
@@ -1109,13 +1109,13 @@ void latch_datapath_values()
   }
 
   /* ---- IR ---- */
-  if (GetLD_IR(micro) == 1) 
+  if (GetLD_IR(micro) == 1)
   {
     NEXT_LATCHES.IR = BUS;                  /* BUS */
   }
 
   /* ---- BEN ---- */
-  if (GetLD_BEN(micro) == 1) 
+  if (GetLD_BEN(micro) == 1)
   {
     int n_bit = (ir >> 11) & 1;                        /* IR[11]: (ir shifted right 11) AND 1 */
     int z_bit = (ir >> 10) & 1;                        /* IR[10]: (ir shifted right 10) AND 1 */
@@ -1124,7 +1124,7 @@ void latch_datapath_values()
   }
 
   /* ---- register file ---- */
-  if (GetLD_REG(micro) == 1) 
+  if (GetLD_REG(micro) == 1)
   {
     int dr;
     if (GetDRMUX2(micro) == 0)      { dr = (CURRENT_LATCHES.IR >> 9) & 0x7;}   /* IR[11:9]: (CURRENT_LATCHES.IR >> 9) & 0x7 */
@@ -1134,24 +1134,24 @@ void latch_datapath_values()
   }
 
   /* ---- condition codes: set from the value on the bus ---- */
-  if (GetLD_CC(micro) == 1) 
+  if (GetLD_CC(micro) == 1)
   {
-    if (((BUS >> 15) & 1) == 1) 
+    if (((BUS >> 15) & 1) == 1)
     {
       NEXT_LATCHES.N = 1;  NEXT_LATCHES.Z = 0;  NEXT_LATCHES.P = 0;   /* negative */
-    } 
-    else if (BUS == 0) 
+    }
+    else if (BUS == 0)
     {
       NEXT_LATCHES.N = 0;  NEXT_LATCHES.Z = 1;  NEXT_LATCHES.P = 0;   /* zero */
-    } 
-    else 
+    }
+    else
     {
       NEXT_LATCHES.N = 0;  NEXT_LATCHES.Z = 0;  NEXT_LATCHES.P = 1;   /* positive */
     }
   }
 
   /* ---- PC ---- */
-  if (GetLD_PC(micro) == 1) 
+  if (GetLD_PC(micro) == 1)
   {
     if (GetPCMUX(micro) == 0)      { NEXT_LATCHES.PC = Low16bits(CURRENT_LATCHES.PC + 2); }   /* Low16bits(CURRENT_LATCHES.PC + 2) -- unchanged */
     else if (GetPCMUX(micro) == 1) { NEXT_LATCHES.PC = BUS; }   /* BUS -- unchanged */
@@ -1160,13 +1160,13 @@ void latch_datapath_values()
   }
 
     /* ---- Lab 4: PSR (DP1) ---- */
-  if (GetLD_PSR(micro) == 1) 
+  if (GetLD_PSR(micro) == 1)
   {
-    if (GetPSRMUX(micro) == 1) 
+    if (GetPSRMUX(micro) == 1)
     {
       NEXT_LATCHES.PSR15 = 0;   /* 0: enter supervisor mode (entry states 41, 42) */
-    } 
-    else 
+    }
+    else
     {
       NEXT_LATCHES.PSR15 = (BUS >> 15) & 1;   /* (BUS >> 15) & 1: restored privilege bit (RTI, state 58) */
       NEXT_LATCHES.N     = (BUS >> 2) & 1;   /* (BUS >> 2) & 1: restored N */
@@ -1176,31 +1176,31 @@ void latch_datapath_values()
   }
 
   /* ---- Lab 4: saved stack pointers (DP3), both load from SR1_OUT (R6 when SR1MUX = 10) ---- */
-  if (GetLD_SSP(micro) == 1) 
+  if (GetLD_SSP(micro) == 1)
   {
     NEXT_LATCHES.SSP = SR1_OUT;   /* SR1_OUT: park the supervisor R6 (state 26) */
   }
-  if (GetLD_USP(micro) == 1) 
+  if (GetLD_USP(micro) == 1)
   {
     NEXT_LATCHES.USP = SR1_OUT;   /* SR1_OUT: park the user R6 (state 44) */
   }
 
   /* ---- Lab 4: Vector register (DP4) and INT clear (DP6) ---- */
-  if (GetLD_VECTOR(micro) == 1) 
+  if (GetLD_VECTOR(micro) == 1)
   {
-    if (GetVECTORMUX(micro) == 0) 
+    if (GetVECTORMUX(micro) == 0)
     {
       NEXT_LATCHES.VECTOR = CURRENT_LATCHES.INTV & 0xFF;   /* CURRENT_LATCHES.INTV & 0xFF: the timer's vector */
       NEXT_LATCHES.INT    = 0;   /* 0: the interrupt is being taken, so it's no longer pending */
-    } 
-    else 
+    }
+    else
     {
       NEXT_LATCHES.VECTOR = CURRENT_LATCHES.EXCV & 0xFF;   /* CURRENT_LATCHES.EXCV & 0xFF: the exception's vector */
     }
   }
 
   /* ---- Lab 4: EXCV register, loads whenever the exception logic fires (no control bit) ---- */
-  if (EXC == 1) 
+  if (EXC == 1)
   {
     NEXT_LATCHES.EXCV = EXC_VECTOR;   /* EXC_VECTOR: from eval_exception() this cycle */
   }
